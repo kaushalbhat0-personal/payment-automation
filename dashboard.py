@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -9,9 +8,6 @@ import streamlit as st
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
 import gspread
-
-from app.config import Config
-
 
 logger = logging.getLogger(__name__)
 _SCOPES = ("https://www.googleapis.com/auth/spreadsheets",)
@@ -117,16 +113,16 @@ def _style_payments_table(df: pd.DataFrame):
     )
 
 
-def _load_config() -> Config:
-    # Streamlit doesn't automatically load `.env` in all environments.
-    load_dotenv(override=False)
-    return Config.from_env()
-
-
 def _load_service_account_info() -> dict[str, Any]:
-    raw_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+    raw_value = st.secrets.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    if raw_value is None:
+        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON is not set in Streamlit secrets")
+    if isinstance(raw_value, dict):
+        return raw_value
+
+    raw_json = str(raw_value).strip()
     if not raw_json:
-        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set")
+        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON in Streamlit secrets is empty")
 
     candidates = [raw_json]
     # Some platforms wrap the full JSON value in quotes.
@@ -152,12 +148,12 @@ def _load_service_account_info() -> dict[str, Any]:
     if parsed is None:
         reason = " | ".join(parse_errors) if parse_errors else "Unknown JSON parsing error"
         logger.error(
-            "Invalid GOOGLE_SERVICE_ACCOUNT_JSON. Raw length=%s. Reason=%s",
+            "Invalid GOOGLE_SERVICE_ACCOUNT_JSON in Streamlit secrets. Raw length=%s. Reason=%s",
             len(raw_json),
             reason,
         )
         raise RuntimeError(
-            "GOOGLE_SERVICE_ACCOUNT_JSON is invalid JSON. "
+            "GOOGLE_SERVICE_ACCOUNT_JSON in Streamlit secrets is invalid JSON. "
             f"Exact reason: {reason}"
         )
 
@@ -179,21 +175,25 @@ def _load_service_account_info() -> dict[str, Any]:
     return parsed
 
 
-def _get_worksheet(config: Config):
+def _get_worksheet():
     service_account_info = _load_service_account_info()
     creds = Credentials.from_service_account_info(service_account_info, scopes=_SCOPES)
     gc = gspread.authorize(creds)
-    sh = gc.open_by_key(config.google_sheet_id)
-    return sh.worksheet(config.google_worksheet_name)
+    google_sheet_id = st.secrets.get("GOOGLE_SHEET_ID")
+    if not google_sheet_id:
+        raise RuntimeError("GOOGLE_SHEET_ID is not set in Streamlit secrets")
+    worksheet_name = st.secrets.get("GOOGLE_WORKSHEET_NAME")
+    if not worksheet_name:
+        raise RuntimeError("GOOGLE_WORKSHEET_NAME is not set in Streamlit secrets")
+    sh = gc.open_by_key(str(google_sheet_id))
+    return sh.worksheet(str(worksheet_name))
 
 
 @st.cache_data(ttl=30, show_spinner=False)
 def fetch_payments_df() -> pd.DataFrame:
-    config = _load_config()
-    if not config.google_sheet_id:
-        raise RuntimeError("GOOGLE_SHEET_ID is not set")
-
-    ws = _get_worksheet(config)
+    # Streamlit doesn't automatically load `.env` in all environments.
+    load_dotenv(override=False)
+    ws = _get_worksheet()
 
     # Assumes row 1 is headers; converts each row to a dict keyed by header.
     records: list[dict[str, Any]] = ws.get_all_records(default_blank="")

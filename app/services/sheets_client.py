@@ -52,5 +52,6 @@ def append_row_if_payment_new(
     normalized_payment_id = _normalize_payment_id(payment_id)
     if normalized_payment_id in _existing_payment_ids(ws):
         return False
-    ws.append_row(values, value_input_option="USER_ENTERED")
+    # Keep header in row 1 and always place newest payment at top.
+    ws.insert_row(values, index=2, value_input_option="USER_ENTERED")
     return True
