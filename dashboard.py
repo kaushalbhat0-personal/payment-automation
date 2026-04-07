@@ -35,7 +35,7 @@ def _format_inr(amount: float) -> str:
     return f"₹{round(float(amount)):,.0f}"
 
 
-def _short_batch_label(value: Any) -> str:
+def _clean_batch(value: Any) -> str:
     text = str(value).strip()
     # Remove timing text inside brackets for cleaner chart labels.
     text = re.sub(r"\s*\([^)]*\)|\s*\[[^\]]*\]", "", text)
@@ -311,12 +311,14 @@ def main() -> None:
         else:
             batch_revenue = (
                 non_empty_batch_df.assign(
+                    clean_batch=non_empty_batch_df["preferred_batch"].map(_clean_batch),
                     amount_inr_num=pd.to_numeric(
                         non_empty_batch_df["amount_inr"], errors="coerce"
                     ).fillna(0.0)
                 )
-                .groupby("preferred_batch", dropna=False)["amount_inr_num"]
+                .groupby("clean_batch", dropna=False)["amount_inr_num"]
                 .sum()
+                .loc[lambda s: s.index.astype(str).str.strip() != ""]
                 .sort_values(ascending=False)
             )
             top_batch_name = str(batch_revenue.index[0])
@@ -361,37 +363,28 @@ def main() -> None:
 
         with chart_col1:
             st.subheader("Revenue by Batch")
-            revenue_by_batch = (
+            revenue_by_batch_df = (
                 filtered_df.assign(
+                    clean_batch=filtered_df["preferred_batch"].map(_clean_batch),
                     amount_inr_num=pd.to_numeric(filtered_df["amount_inr"], errors="coerce").fillna(
                         0.0
-                    )
+                    ),
                 )
-                .groupby("preferred_batch", dropna=False)["amount_inr_num"]
+                .groupby("clean_batch", dropna=False, as_index=False)["amount_inr_num"]
                 .sum()
-                .sort_values(ascending=False)
             )
-            revenue_by_batch = revenue_by_batch[
-                revenue_by_batch.index.astype(str).str.strip() != ""
-            ]
-            if revenue_by_batch.empty:
+            revenue_by_batch_df = revenue_by_batch_df[
+                revenue_by_batch_df["clean_batch"].astype(str).str.strip() != ""
+            ].sort_values("amount_inr_num", ascending=False)
+            if revenue_by_batch_df.empty:
                 st.info("No data available for revenue by batch.")
             else:
-                revenue_by_batch_df = (
-                    revenue_by_batch.rename_axis("preferred_batch")
-                    .reset_index(name="amount_inr_num")
-                    .assign(
-                        preferred_batch_short=lambda d: d["preferred_batch"].map(
-                            _short_batch_label
-                        ),
-                    )
-                )
                 revenue_by_batch_df["amount_inr_label"] = revenue_by_batch_df[
                     "amount_inr_num"
                 ].map(_format_inr)
                 bar_base = alt.Chart(revenue_by_batch_df).encode(
                     y=alt.Y(
-                        "preferred_batch_short:N",
+                        "clean_batch:N",
                         sort="-x",
                         title="Batch",
                         axis=alt.Axis(labelColor="#E5E7EB", titleColor="#E5E7EB"),
@@ -402,7 +395,7 @@ def main() -> None:
                         axis=alt.Axis(labelColor="#E5E7EB", titleColor="#E5E7EB"),
                     ),
                     tooltip=[
-                        alt.Tooltip("preferred_batch:N", title="Batch"),
+                        alt.Tooltip("clean_batch:N", title="Batch"),
                         alt.Tooltip("amount_inr_label:N", title="Revenue"),
                     ],
                 )
