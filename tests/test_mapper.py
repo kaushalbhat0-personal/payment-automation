@@ -45,7 +45,7 @@ def test_parse_payment_captured_minimal():
     row = parse_payment_captured(payload)
     assert row.payment_id == "pay_123"
     assert row.email == "user@example.com"
-    assert row.contact == "+919999999999"
+    assert row.contact == "9999999999"
     assert row.amount_inr == 499.0
     assert row.status == "captured"
     assert row.name == "Ada"
@@ -64,6 +64,65 @@ def test_parse_payment_captured_minimal():
         row.mode,
         row.captured_at_ist,
     ]
+
+
+def test_parse_payment_captured_normalizes_contact_last_10_digits():
+    base_payload = {
+        "event": "payment.captured",
+        "payload": {
+            "payment": {
+                "entity": {
+                    "id": "pay_abc",
+                    "amount": 10_000,
+                    "status": "captured",
+                    "email": "user@example.com",
+                    "notes": {"name": "Ada", "preferred_batch": "A", "mode": "online"},
+                    "created_at": 1704067200,
+                }
+            }
+        },
+    }
+
+    payload_plus_91 = {
+        **base_payload,
+        "payload": {
+            "payment": {
+                "entity": {
+                    **base_payload["payload"]["payment"]["entity"],
+                    "contact": "+919876543210",
+                }
+            }
+        },
+    }
+    assert parse_payment_captured(payload_plus_91).contact == "9876543210"
+
+    payload_91 = {
+        **base_payload,
+        "payload": {
+            "payment": {
+                "entity": {
+                    **base_payload["payload"]["payment"]["entity"],
+                    "contact": "919876543210",
+                }
+            }
+        },
+    }
+    assert parse_payment_captured(payload_91).contact == "9876543210"
+
+    payload_10 = {
+        **base_payload,
+        "payload": {
+            "payment": {
+                "entity": {
+                    **base_payload["payload"]["payment"]["entity"],
+                    "contact": "9876543210",
+                }
+            }
+        },
+    }
+    row = parse_payment_captured(payload_10)
+    assert row.contact == "9876543210"
+    assert row.as_sheet_row()[3] == "9876543210"
 
 
 def test_parse_payment_captured_missing_notes_defaults():

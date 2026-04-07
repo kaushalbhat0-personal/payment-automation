@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -48,6 +49,14 @@ def _notes_dict(entity: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
+def _normalize_contact(value: Any) -> str:
+    raw_contact = _str_or_empty(value)
+    digits_only = re.sub(r"\D", "", raw_contact)
+    if digits_only.startswith("91") and len(digits_only) > 10:
+        digits_only = digits_only[2:]
+    return digits_only[-10:]
+
+
 def parse_payment_captured(payload: dict[str, Any]) -> ParsedPaymentRow:
     pay_wrap = payload.get("payload") or {}
     payment = pay_wrap.get("payment") or {}
@@ -71,7 +80,7 @@ def parse_payment_captured(payload: dict[str, Any]) -> ParsedPaymentRow:
     return ParsedPaymentRow(
         payment_id=_str_or_empty(entity.get("id")),
         email=_str_or_empty(entity.get("email")),
-        contact=_str_or_empty(entity.get("contact")),
+        contact=_normalize_contact(entity.get("contact")),
         amount_inr=paise_to_inr(amount),
         status=_str_or_empty(entity.get("status")),
         name=_str_or_empty(notes.get("name")),
