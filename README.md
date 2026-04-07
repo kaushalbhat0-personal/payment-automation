@@ -19,14 +19,14 @@ Share the spreadsheet with the service account email (Editor).
 1. `python -m venv .venv` then activate it.
 2. `pip install -r requirements.txt`
 3. Copy `.env.example` to `.env` (or create `.env`) and set the variables below.
-4. Put your service account JSON where `GOOGLE_SERVICE_ACCOUNT_FILE` points (e.g. `credentials/service-account.json`).
+4. Set `GOOGLE_SERVICE_ACCOUNT_JSON` with the full service account JSON payload.
 
 ## Environment variables
 
 | Variable | Purpose |
 |----------|---------|
 | `RAZORPAY_WEBHOOK_SECRET` | Webhook signing secret from the Razorpay Dashboard |
-| `GOOGLE_SERVICE_ACCOUNT_FILE` | Path to the service account JSON key |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Full Google service account JSON payload (single-line JSON string) |
 | `GOOGLE_SHEET_ID` | Spreadsheet ID from the Google Sheets URL |
 | `GOOGLE_WORKSHEET_NAME` | Tab name (default in config: `Payments`) |
 | `SKIP_WEBHOOK_VERIFY` | Set to `true` / `1` **only for local testing** to skip HMAC checks. Use **false** (or unset) in production. |
@@ -46,6 +46,24 @@ flask --app wsgi run --debug
 ```
 
 Default URL: `http://127.0.0.1:5000` — `GET /health`, `POST /webhooks/razorpay`.
+
+## Dashboard (Streamlit)
+
+Run the payments dashboard:
+
+```bash
+streamlit run dashboard.py
+```
+
+Dashboard highlights:
+
+- Data is fetched from Google Sheets via `@st.cache_data(ttl=30)`.
+- Auto-refresh updates data every 30 seconds without full browser reload (filters remain intact).
+- Filters include batch, mode, and case-insensitive search on name/email/phone.
+- Table shows newest payments first (`captured_at_ist` parsed safely with invalid dates handled).
+- Status highlighting: `captured` in green, `failed` in red.
+- CSV export downloads the currently filtered rows as `payments_export.csv`.
+- Insights include top batch by revenue, most common mode, and average payment amount.
 
 ## Run (production, Linux)
 
