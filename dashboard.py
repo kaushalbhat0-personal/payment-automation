@@ -1,8 +1,9 @@
 import json
 import logging
+import re
 from typing import Any
 
-import matplotlib.pyplot as plt
+import altair as alt
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
@@ -31,7 +32,14 @@ _COLUMN_ALIAS_MAP = {
 
 def _format_inr(amount: float) -> str:
     # Use the Rupee symbol and Indian-style readability.
-    return f"₹{amount:,.0f}"
+    return f"₹{round(float(amount)):,.0f}"
+
+
+def _short_batch_label(value: Any) -> str:
+    text = str(value).strip()
+    # Remove timing text inside brackets for cleaner chart labels.
+    text = re.sub(r"\s*\([^)]*\)|\s*\[[^\]]*\]", "", text)
+    return text.strip()
 
 
 def _normalize_sheet_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -213,6 +221,16 @@ def main() -> None:
     st.set_page_config(page_title="Payments Dashboard", layout="wide")
     st.title("Payments Dashboard")
     st.caption("Auto-refresh: every 30 seconds (data only)")
+    st.markdown(
+        """
+        <style>
+        .block-container {padding-top: 1.25rem; padding-bottom: 1.25rem;}
+        div[data-testid="stMetricValue"] {font-size: 1.35rem;}
+        div[data-testid="stMetricLabel"] {font-size: 0.95rem;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
     fragment = getattr(st, "fragment", None) or getattr(st, "experimental_fragment", None)
     if fragment is None:
@@ -359,7 +377,47 @@ def main() -> None:
             if revenue_by_batch.empty:
                 st.info("No data available for revenue by batch.")
             else:
-                st.bar_chart(revenue_by_batch)
+                revenue_by_batch_df = (
+                    revenue_by_batch.rename_axis("preferred_batch")
+                    .reset_index(name="amount_inr_num")
+                    .assign(
+                        preferred_batch_short=lambda d: d["preferred_batch"].map(
+                            _short_batch_label
+                        ),
+                    )
+                )
+                revenue_by_batch_df["amount_inr_label"] = revenue_by_batch_df[
+                    "amount_inr_num"
+                ].map(_format_inr)
+                bar_base = alt.Chart(revenue_by_batch_df).encode(
+                    y=alt.Y(
+                        "preferred_batch_short:N",
+                        sort="-x",
+                        title="Batch",
+                        axis=alt.Axis(labelColor="#E5E7EB", titleColor="#E5E7EB"),
+                    ),
+                    x=alt.X(
+                        "amount_inr_num:Q",
+                        title="Revenue (INR)",
+                        axis=alt.Axis(labelColor="#E5E7EB", titleColor="#E5E7EB"),
+                    ),
+                    tooltip=[
+                        alt.Tooltip("preferred_batch:N", title="Batch"),
+                        alt.Tooltip("amount_inr_label:N", title="Revenue"),
+                    ],
+                )
+                bars = bar_base.mark_bar(color="#4C78A8", cornerRadiusEnd=4)
+                labels = bar_base.mark_text(
+                    align="left", baseline="middle", dx=6, color="#E5E7EB", fontSize=12
+                ).encode(text="amount_inr_label:N")
+                st.altair_chart(
+                    (bars + labels)
+                    .properties(height=360)
+                    .configure(background="#0E1117")
+                    .configure_view(strokeWidth=0)
+                    .configure_axis(gridColor="#2D3748", domainColor="#2D3748"),
+                    use_container_width=True,
+                )
 
         with chart_col2:
             st.subheader("Mode Distribution")
@@ -368,15 +426,66 @@ def main() -> None:
             if mode_counts.empty:
                 st.info("No data available for mode distribution.")
             else:
-                fig, ax = plt.subplots()
-                ax.pie(
-                    mode_counts.values,
-                    labels=mode_counts.index,
-                    autopct="%1.1f%%",
-                    startangle=90,
+                mode_df = (
+                    mode_counts.rename_axis("mode")
+                    .reset_index(name="count")
+                    .sort_values("count", ascending=False)
                 )
-                ax.axis("equal")
-                st.pyplot(fig, use_container_width=True)
+                total_count = int(mode_df["count"].sum())
+                mode_df["percent"] = mode_df["count"] / total_count
+                mode_df["percent_label"] = (mode_df["percent"] * 100).map(
+                    lambda v: f"{v:.1f}%"
+                )
+                mode_df["legend_label"] = mode_df.apply(
+                    lambda row: f"{row['mode']} ({int(row['count'])}, {row['percent_label']})",
+                    axis=1,
+                )
+
+                donut = (
+                    alt.Chart(mode_df)
+                    .mark_arc(innerRadius=70, outerRadius=130)
+                    .encode(
+                        theta=alt.Theta("count:Q"),
+                        color=alt.Color(
+                            "legend_label:N",
+                            title=None,
+                            legend=alt.Legend(
+                                orient="bottom", labelColor="#E5E7EB", symbolType="circle"
+                            ),
+                            scale=alt.Scale(
+                                range=[
+                                    "#4C78A8",
+                                    "#F58518",
+                                    "#54A24B",
+                                    "#E45756",
+                                    "#B279A2",
+                                    "#72B7B2",
+                                ]
+                            ),
+                        ),
+                        tooltip=[
+                            alt.Tooltip("mode:N", title="Mode"),
+                            alt.Tooltip("count:Q", title="Count", format=",d"),
+                            alt.Tooltip("percent:Q", title="Percentage", format=".1%"),
+                        ],
+                    )
+                )
+                labels = (
+                    alt.Chart(mode_df)
+                    .mark_text(radius=155, color="#E5E7EB", fontSize=12)
+                    .encode(
+                        theta=alt.Theta("count:Q", stack=True),
+                        text=alt.Text("percent:Q", format=".1%"),
+                    )
+                )
+                st.altair_chart(
+                    (donut + labels)
+                    .properties(height=360)
+                    .configure(background="#0E1117")
+                    .configure_view(strokeWidth=0)
+                    .configure_legend(labelFontSize=12),
+                    use_container_width=True,
+                )
 
     render_dashboard()
 
