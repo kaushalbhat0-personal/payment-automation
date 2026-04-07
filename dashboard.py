@@ -370,8 +370,11 @@ def main() -> None:
                         0.0
                     ),
                 )
-                .groupby("clean_batch", dropna=False, as_index=False)["amount_inr_num"]
-                .sum()
+                .groupby("clean_batch", dropna=False, as_index=False)
+                .agg(
+                    amount_inr_num=("amount_inr_num", "sum"),
+                    total_students=("payment_id", "size"),
+                )
             )
             revenue_by_batch_df = revenue_by_batch_df[
                 revenue_by_batch_df["clean_batch"].astype(str).str.strip() != ""
@@ -382,6 +385,9 @@ def main() -> None:
                 revenue_by_batch_df["amount_inr_label"] = revenue_by_batch_df[
                     "amount_inr_num"
                 ].map(_format_inr)
+                revenue_by_batch_df["students_label"] = revenue_by_batch_df[
+                    "total_students"
+                ].map(lambda v: f"{int(v):,}")
                 bar_base = alt.Chart(revenue_by_batch_df).encode(
                     y=alt.Y(
                         "clean_batch:N",
@@ -397,6 +403,7 @@ def main() -> None:
                     tooltip=[
                         alt.Tooltip("clean_batch:N", title="Batch"),
                         alt.Tooltip("amount_inr_label:N", title="Revenue"),
+                        alt.Tooltip("students_label:N", title="Total Students"),
                     ],
                 )
                 bars = bar_base.mark_bar(color="#4C78A8", cornerRadiusEnd=4)
