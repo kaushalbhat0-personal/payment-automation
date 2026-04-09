@@ -27,10 +27,11 @@ def create_app() -> Flask:
     )
 
     from app.routes.health import bp as health_bp
-    from app.routes.webhooks import bp as webhooks_bp
+    from app.routes import Webhooks
+    webhooks = Webhooks()
 
     app.register_blueprint(health_bp)
-    app.register_blueprint(webhooks_bp)
+    app.register_blueprint(webhooks.bp)
 
     if os.environ.get("FLASK_DEBUG") == "1":
         app.logger.setLevel(logging.DEBUG)

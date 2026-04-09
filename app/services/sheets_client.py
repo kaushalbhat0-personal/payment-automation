@@ -55,3 +55,8 @@ def append_row_if_payment_new(
     # Keep header in row 1 and always place newest payment at top.
     ws.insert_row(values, index=2, value_input_option="USER_ENTERED")
     return True
+
+
+def get_all_records(config: Config) -> list[dict]:
+    ws = _get_worksheet(config)
+    return ws.get_all_records()
