@@ -3,6 +3,7 @@ import os
 
 from dotenv import load_dotenv
 from flask import Flask
+from flask_cors import CORS
 
 from app.config import Config
 
@@ -16,6 +17,7 @@ def create_app() -> Flask:
     log = logging.getLogger(__name__)
 
     app = Flask(__name__)
+    CORS(app)
     cfg = Config.from_env()
     app.config["APP_CONFIG"] = cfg
 
