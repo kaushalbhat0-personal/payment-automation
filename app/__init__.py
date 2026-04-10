@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 from flask import Flask
 from flask_cors import CORS
+from flasgger import Swagger
 
 from app.config import Config
 
@@ -21,7 +22,9 @@ def create_app() -> Flask:
         static_folder="build/static",
         template_folder="build"
     )
+    
     CORS(app)
+    swagger = Swagger(app)
     cfg = Config.from_env()
     app.config["APP_CONFIG"] = cfg
 

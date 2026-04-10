@@ -11,10 +11,74 @@ class Webhooks:
     def __init__(self):
         self.bp = Blueprint("webhooks", __name__)
         self.logger = logging.getLogger(__name__)
-
+        self.bp.add_url_rule(
+        "/webhooks/razorpay",
+        view_func=self.razorpay_webhook,
+        methods=["POST"]
+        )
 
     def razorpay_webhook(self):
-        self.bp.post("/webhooks/razorpay")
+        """
+Razorpay Webhook Endpoint (payment.captured)
+---
+tags:
+  - Webhooks
+
+consumes:
+  - application/json
+
+parameters:
+  - name: X-Razorpay-Signature
+    in: header
+    type: string
+    required: false
+    description: Razorpay webhook signature
+
+  - name: body
+    in: body
+    required: true
+    schema:
+      type: object
+      properties:
+        event:
+          type: string
+          example: payment.captured
+        payload:
+          type: object
+          properties:
+            payment:
+              type: object
+              properties:
+                entity:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      example: pay_test123
+                    email:
+                      type: string
+                      example: test@gmail.com
+                    contact:
+                      type: string
+                      example: "9999999999"
+                    amount:
+                      type: integer
+                      example: 516300
+                    status:
+                      type: string
+                      example: captured
+
+responses:
+  200:
+    description: Success
+  400:
+    description: Invalid JSON
+  401:
+    description: Invalid signature
+  500:
+    description: Internal error
+"""
+       
         config = current_app.config["APP_CONFIG"]
         raw_body = request.get_data(cache=False)
         env_skip_webhook_verify = str(os.environ.get("SKIP_WEBHOOK_VERIFY", "")).strip().lower()
