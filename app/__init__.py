@@ -16,7 +16,11 @@ def create_app() -> Flask:
     )
     log = logging.getLogger(__name__)
 
-    app = Flask(__name__)
+    app = Flask(
+        __name__,
+        static_folder="build/static",
+        template_folder="build"
+    )
     CORS(app)
     cfg = Config.from_env()
     app.config["APP_CONFIG"] = cfg

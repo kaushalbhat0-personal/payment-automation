@@ -1,4 +1,5 @@
-from flask import Blueprint, current_app, jsonify
+from flask import Blueprint, current_app, jsonify, send_from_directory
+import os
 
 from app.services.sheets_client import get_all_records
 
@@ -56,6 +57,24 @@ def dashboard_summary():
         "mode_distribution": mode_distribution
     })
 
-@bp.get("/")
-def home():
-    return "Server is running 🚀"
+import os
+
+@bp.route("/")
+def serve_react():
+    template_folder = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "build")
+    )
+    return send_from_directory(template_folder, "index.html")
+
+
+@bp.route("/<path:path>")
+def serve_static_files(path):
+    template_folder = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "build")
+    )
+    full_path = os.path.join(template_folder, path)
+    if path != "" and os.path.exists(full_path):
+        return send_from_directory(template_folder, path)
+    else:
+        return send_from_directory(template_folder, "index.html")
+   
